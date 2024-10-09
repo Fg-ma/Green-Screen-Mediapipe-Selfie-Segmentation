@@ -6,6 +6,7 @@ export default function Main() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const segmenterRef = useRef<any>(null);
+  const segmenterInitializedRef = useRef(false);
 
   useEffect(() => {
     const getWebcamStream = async () => {
@@ -38,7 +39,9 @@ export default function Main() {
       });
 
       // Initialize the segmenter and set options
-      await segmenter.initialize();
+      await segmenter.initialize().then(() => {
+        segmenterInitializedRef.current = true;
+      });
       segmenter.setOptions({
         modelSelection: 0, // Use the landscape model (0 for general)
         selfieMode: false,
@@ -73,7 +76,7 @@ export default function Main() {
           );
 
           ctxRef.current.globalCompositeOperation = "destination-over";
-          ctxRef.current.fillStyle = "red";
+          ctxRef.current.fillStyle = "green";
           ctxRef.current.fillRect(
             0,
             0,
@@ -91,40 +94,42 @@ export default function Main() {
   }, []);
 
   const processFrame = async () => {
-    if (videoRef.current && canvasRef.current && segmenterRef.current) {
-      const videoWidth = videoRef.current.videoWidth;
-      const videoHeight = videoRef.current.videoHeight;
+    const videoWidth = videoRef.current?.videoWidth;
+    const videoHeight = videoRef.current?.videoHeight;
 
-      canvasRef.current.width = videoWidth;
-      canvasRef.current.height = videoHeight;
-
-      ctxRef.current?.drawImage(
-        videoRef.current,
-        0,
-        0,
-        videoWidth,
-        videoHeight
-      );
-      const imageData = ctxRef.current?.getImageData(
-        0,
-        0,
-        videoWidth,
-        videoHeight
-      );
-
-      // Use the segmenter to segment the image
-      await segmenterRef.current.send({ image: imageData });
+    if (
+      !videoRef.current ||
+      !canvasRef.current ||
+      !segmenterRef.current ||
+      !segmenterInitializedRef.current ||
+      !videoWidth ||
+      !videoHeight
+    ) {
+      return;
     }
+
+    canvasRef.current.width = videoWidth;
+    canvasRef.current.height = videoHeight;
+
+    ctxRef.current?.drawImage(videoRef.current, 0, 0, videoWidth, videoHeight);
+    const imageData = ctxRef.current?.getImageData(
+      0,
+      0,
+      videoWidth,
+      videoHeight
+    );
+
+    // Use the segmenter to segment the image
+    await segmenterRef.current.send({ image: imageData });
   };
 
   return (
     <div>
-      <h1>Webcam Green Screen Effect</h1>
       <video ref={videoRef} autoPlay playsInline style={{ display: "none" }} />
       <canvas
         ref={canvasRef}
         style={{
-          width: "100%",
+          aspectRatio: 16 / 9,
           maxHeight: "80vh",
           border: "2px solid black",
           transform: "scale(-1, 1)",
